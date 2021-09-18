@@ -58,13 +58,9 @@
 
     function drop(evt)
     {
-        if (!matches(evt.target, '.menu, .menu *, .script, .script *, .content'))
+        if (!matches(evt.target, '.menu, .menu *, .script, .script *'))
             return;
-        var dropTarget = closest
-        (
-            evt.target,
-            '.menu, .menu *, .script, .script *, .content',
-        )
+        var dropTarget = closest(evt.target, '.script .container, .script .block, .menu, .script');
         var dropType = 'script';
         if (matches(dropTarget, '.menu'))
             dropType = 'menu';
@@ -97,9 +93,13 @@
 
     function _findAndRemoveClass(class_)
     {
-        var elem = document.querySelector('.' + class_);
-        if (elem)
-            elem.classList.remove(class_);
+        [].slice.call(document.querySelectorAll('.' + class_)).forEach
+        (
+            function(elem)
+            {
+                elem.classList.remove(class_);
+            }
+        );
     }
 
     function dragEnd(evt)
@@ -111,7 +111,7 @@
 
     document.addEventListener('dragstart', dragStart, false);
     document.addEventListener('dragenter', dragEnter, false);
-    document.addEventListener('dradover', dragOver, false);
+    document.addEventListener('dragover', dragOver, false);
     document.addEventListener('drag', function(){}, false);
     document.addEventListener('drop', drop, false);
     document.addEventListener('dragend', dragEnd, false);

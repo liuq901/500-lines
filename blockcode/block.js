@@ -10,7 +10,7 @@
             {
                 'class': 'block',
                 draggable: true,
-                'data-name': name
+                'data-name': name,
             }, 
             [name],
         );
@@ -22,7 +22,7 @@
                 elem
                 (
                     'div',
-                    {'class': 'containter'},
+                    {'class': 'container'},
                     contents.map
                     (
                         function(block)
@@ -31,8 +31,8 @@
                         }
                     ),
                 )
-            )
-        else if (typeof contents == 'string')
+            );
+        else if (typeof contents === 'string')
             item.appendChild(document.createTextNode(' ' + contents));
         return item;
     }
@@ -40,7 +40,7 @@
     function blockContents(block)
     {
         var container = block.querySelector('.container');
-        return containter ? [].slice.call(container.children) : null;
+        return container ? [].slice.call(container.children) : null;
     }
 
     function blockValue(block)
@@ -53,8 +53,8 @@
     {
         if 
         (
-            block.children.length > 1 && 
             block.lastChild.nodeType === Node.TEXT_NODE &&
+            block.lastChild !== block.firstChild &&
             block.lastChild.textContent
         )
             return block.lastChild.textContent.slice(1);
@@ -69,7 +69,7 @@
         var contents = blockContents(block);
         var units = blockUnits(block);
         if (contents)
-            script.push(contents.map(blockScript))
+            script.push(contents.map(blockScript));
         if (units)
             script.push(units);
         return script.filter
@@ -78,7 +78,7 @@
             {
                 return notNull !== null;
             }
-        )
+        );
     }
 
     function runBlocks(blocks)
@@ -89,7 +89,7 @@
             {
                 trigger('run', block);
             }
-        )
+        );
     }
 
     global.Block =
