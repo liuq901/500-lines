@@ -35,7 +35,7 @@
 
     function restoreLocal()
     {
-        jsonToScript(localStorage[title] | '[]');
+        jsonToScript(localStorage[title] || '[]');
     }
 
     function clearScript()
