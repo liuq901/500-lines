@@ -1,7 +1,10 @@
 import argparse
+import re
 import socket
 import socketserver
+import subprocess
 import time
+import threading
 import unittest
 
 import helpers
@@ -39,7 +42,7 @@ class TestHandler(socketserver.BaseRequestHandler):
             else:
                 self.send('OK')
                 print('running')
-                commit_id = command_groups(2)[1:]
+                commit_id = command_groups.group(2)[1:]
                 self.server.busy = True
                 self.run_tests(commit_id, self.server.repo_folder)
                 self.server.busy = False
@@ -99,8 +102,9 @@ def serve():
     server.repo_folder = args.repo
 
     dispatcher_host, dispatcher_port = args.dispatcher_server.split(':')
-    server.dispatcher_server = {'host': dispatcher_server, 'port': dispatcher_port}
-    response = helpers.communicate(server.dispatcher_server['host'], server.dispatcher_server['port'],
+    server.dispatcher_server = {'host': dispatcher_host, 'port': dispatcher_port}
+    response = helpers.communicate(server.dispatcher_server['host'], 
+        int(server.dispatcher_server['port']),
         f'register:{runner_host}:{runner_port}')
     if response != 'OK':
         raise Exception('Can\'t register with dispatcher!')
@@ -128,6 +132,7 @@ def serve():
     except (KeyboardInterrupt, Exception):
         server.dead = True
         t.join()
+        server.shutdown()
 
 if __name__ == '__main__':
     serve()
