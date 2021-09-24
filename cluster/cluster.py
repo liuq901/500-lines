@@ -1,3 +1,4 @@
+from collections import defaultdict
 from collections import namedtuple
 import copy
 import functools
@@ -12,7 +13,7 @@ Proposal = namedtuple('Proposal', ['caller', 'client_id', 'input'])
 Ballot = namedtuple('Ballot', ['n', 'leader'])
 
 Accepted = namedtuple('Accepted', ['slot', 'ballot_num'])
-Accept = namedtuple('Accept', ['slot', 'ballot_num'])
+Accept = namedtuple('Accept', ['slot', 'ballot_num', 'proposal'])
 Decision = namedtuple('Decision', ['slot', 'proposal'])
 Invoked = namedtuple('Invoked', ['client_id', 'output'])
 Invoke = namedtuple('Invoke', ['caller', 'client_id', 'input_value'])
@@ -33,6 +34,7 @@ ACCEPT_RETRANSMIT = 1.0
 PREPARE_RETRANSMIT = 1.0
 INVOKE_RETRANSMIT = 0.5
 LEADER_TIMEOUT = 1.0
+PROPOSE_RETRY = 5
 NULL_BALLOT = Ballot(-1, -1)
 NOOP_PROPOSAL = Proposal(None, None, None)
 
@@ -63,6 +65,12 @@ class Node(object):
             fn = getattr(comp, handler_name)
             fn(sender=sender, **message._asdict())
 
+    def get_decisions(self):
+        for comp in self.roles[:]:
+            if isinstance(comp, Replica):
+                return comp.decisions
+        return {}
+
 class Timer(object):
     def __init__(self, expires, address, callback):
         self.expires = expires
@@ -70,8 +78,8 @@ class Timer(object):
         self.callback = callback
         self.cancelled = False
 
-    def __cmp__(self, other):
-        return cmp(self.expires, other.expires)
+    def __lt__(self, other):
+        return self.expires < other.expires
 
     def cancel(self):
         self.cancelled = True
@@ -165,7 +173,8 @@ class Acceptor(Role):
             if slot not in acc or acc[slot][0] < ballot_num:
                 acc[slot] = (ballot_num, proposal)
 
-        self.node.send([sender], Accepted(slot=slot, ballot_num=self.ballot_num))
+        if slot not in self.node.get_decisions():
+            self.node.send([sender], Accepted(slot=slot, ballot_num=self.ballot_num))
 
 class Replica(Role):
     def __init__(self, node, execute_fn, state, slot, decisions, peers):
@@ -176,6 +185,7 @@ class Replica(Role):
         self.decisions = decisions
         self.peers = peers
         self.proposals = {}
+        self.retry = defaultdict(int)
         self.next_slot = slot
         self.latest_leader = None
         self.latest_leader_timeout = None
@@ -189,14 +199,20 @@ class Replica(Role):
         if not slot:
             slot, self.next_slot = self.next_slot, self.next_slot + 1
         self.proposals[slot] = proposal
-        leader = self.latest_leader or self.node.address
-        self.logger.info(f'proposing {proposal} at slot {slot} to leader {leader}')
-        self.node.send([leader], Propose(slot=slot, proposal=proposal))
+        self.retry[slot] += 1
+        if self.retry[slot] == PROPOSE_RETRY:
+            del self.proposals[slot]
+            del self.retry[slot]
+            self.logger.info(f'propose {proposal} at slot {slot} too many times, try another slot')
+        if slot not in self.decisions:
+            leader = self.latest_leader or self.node.address
+            self.logger.info(f'proposing {proposal} at slot {slot} to leader {leader}')
+            self.node.send([leader], Propose(slot=slot, proposal=proposal))
 
     def do_Decision(self, sender, slot, proposal):
         assert not self.decisions.get(self.slot, None), 'next slot to commit is already decided'
         if slot in self.decisions:
-            assert self.decisions[slot] == Proposal, f'slot {slot} already decided with {self.decisions[slot]}!'
+            assert self.decisions[slot] == proposal, f'slot {slot} already decided with {self.decisions[slot]}!'
             return
         self.decisions[slot] = proposal
         self.next_slot = max(self.next_slot, slot + 1)
@@ -245,10 +261,11 @@ class Replica(Role):
             idx = self.peers.index(self.latest_leader)
             self.latest_leader = self.peers[(idx + 1) % len(self.peers)]
             self.logger.debug(f'leader timed out; tring the next one, {self.latest_leader}')
+            self.latest_leader_timeout = self.set_timer(LEADER_TIMEOUT, reset_leader)
 
         self.latest_leader_timeout = self.set_timer(LEADER_TIMEOUT, reset_leader)
 
-    def do_JOIN(self, sender):
+    def do_Join(self, sender):
         if sender in self.peers:
             self.node.send([sender], Welcome(state=self.state, slot=self.slot, decisions=self.decisions))
 
@@ -382,7 +399,7 @@ class Bootstrap(Role):
     def __init__(self, node, peers, execute_fn, replica_cls=Replica, acceptor_cls=Acceptor, 
         leader_cls=Leader, commander_cls=Commander, scout_cls=Scout,
     ):
-        super().__init__()
+        super().__init__(node)
         self.execute_fn = execute_fn
         self.peers = peers
         self.peers_cycle = itertools.cycle(peers)
@@ -459,7 +476,7 @@ class Requester(Role):
 class Member(object):
     def __init__(self, state_machine, network, peers, seed=None, seed_cls=Seed, bootstrap_cls=Bootstrap):
         self.network = network
-        self.node = network.net_node()
+        self.node = network.new_node()
         if seed is not None:
             self.startup_role = seed_cls(self.node, initial_state=seed, peers=peers, execute_fn=state_machine)
         else:
