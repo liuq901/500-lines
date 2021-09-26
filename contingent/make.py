@@ -1,3 +1,4 @@
+import datetime
 import os
 import re
 
@@ -19,8 +20,13 @@ def change_ext(filename):
     return f'{name}.html'
 
 @task
-def read(path):
-    with open(os.path.join(PATH, path), 'r') as f:
+def change(filename):
+    return datetime.datetime.now()
+
+@task
+def read(filename):
+    change(filename)
+    with open(os.path.join(PATH, filename), 'r') as f:
         return f.read()
 
 @task
