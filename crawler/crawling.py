@@ -15,7 +15,7 @@ def lenient_host(host):
     return ''.join(parts)
 
 def is_redirect(response):
-    return response.status in (300, 301, 302, 303, 307)
+    return response.status in (300, 301, 302, 303, 304, 307, 308)
 
 FetchStatistic = namedtuple('FetchStatistic', [
     'url', 'next_url', 'status', 'exception', 'size',
