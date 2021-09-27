@@ -55,8 +55,8 @@ class Crawler:
         self.t0 = time.time()
         self.t1 = None
 
-    def close(self):
-        self.session.close()
+    async def close(self):
+        await self.session.close()
 
     def host_okay(self, host):
         host = host.lower()
@@ -70,7 +70,7 @@ class Crawler:
             return self._host_okay_lenient(host)
 
     def _host_okay_strictish(self, host):
-        host = host[4:] if host.startwith('www.') else 'www.' + host
+        host = host[4:] if host.startswith('www.') else 'www.' + host
         return host in self.root_domains
 
     def _host_okay_lenient(self, host):
@@ -100,13 +100,13 @@ class Crawler:
                 if urls:
                     LOGGER.info(f'got {len(urls)} distinct urls from {response.url}')
                 for url in urls:
-                    normalized = urllib.parse.urljoin(response.url, url)
+                    normalized = urllib.parse.urljoin(str(response.url), url)
                     defragmented, frag = urllib.parse.urldefrag(normalized)
                     if self.url_allowed(defragmented):
                         links.add(defragmented)
 
         stat = FetchStatistic(
-            url=response.url,
+            url=str(response.url),
             next_url=None,
             status=response.status,
             exception=None,
@@ -147,6 +147,8 @@ class Crawler:
                 num_new_urls=0,
             ))
             return
+
+        LOGGER.info(f'fetch {url} with redirect {max_redirect} time(s)')
 
         try:
             if is_redirect(response):
