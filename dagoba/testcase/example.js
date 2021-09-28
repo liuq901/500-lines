@@ -15,6 +15,8 @@ function example_trials()
         {_out: 10, _in: 'charlie', _label: 'knows'},
     ];
 
+    var Q;
+
     var tests = [
         {
             fun: function(G, V, E)
@@ -29,8 +31,8 @@ function example_trials()
         {
             fun: function(G, V, E)
             {
-                var q = G.v(1).out('knows').out().take(1);                
-                return q.run();
+                Q = G.v(1).out('knows').out().take(1);
+                return Q.run();
             },
             got: function(G, V, E)
             {
@@ -40,9 +42,7 @@ function example_trials()
         {
             fun: function(G, V, E)
             {
-                var q = G.v(1).out('knows').out().take(1);
-                q.run();
-                return q.run();
+                return Q.run();
             },
             got: function(G, V, E)
             {
@@ -52,10 +52,7 @@ function example_trials()
         {
             fun: function(G, V, E)
             {
-                var q = G.v(1).out('knows').out().take(1);
-                q.run();
-                q.run();
-                return q.run();
+                return Q.run();
             },
             got: function(G, V, E)
             {

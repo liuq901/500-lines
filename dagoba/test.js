@@ -3,10 +3,11 @@
 var GG = [];
 
 var trials = [
-    //trivial_trials,
-    //example_trials,
-    //family_trials,
+    trivial_trials,
+    example_trials,
+    family_trials,
     people_trials,
+    asgard_trials,
 ];
 
 var triallist = [];

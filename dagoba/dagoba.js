@@ -289,7 +289,7 @@ Dagoba.addPipetype('filter', function(graph, args, gremlin, state)
         return 'pull';
 
     if (typeof args[0] == 'object')
-        return Dagoba.objectFilter(gremling.vertex, args[0]) ? gremlin : 'pull';
+        return Dagoba.objectFilter(gremlin.vertex, args[0]) ? gremlin : 'pull';
 
     if (typeof args[0] != 'function')
     {
@@ -456,18 +456,23 @@ Dagoba.transform = function(program)
     }, program);
 };
 
-Dagoba.addAlias = function(newname, oldname, defaults)
+Dagoba.addAlias = function(newname, oldnames)
 {
-    defaults = defaults || [];
-    Degoba.addPipetype(newname, function(){});
-    Dagoba.addTransformer(function(progam)
+    Dagoba.addPipetype(newname, function(){});
+    Dagoba.addTransformer(function(program)
     {
-        return program.map(function(step)
+        return program.reduce(function(acc, step)
         {
             if (step[0] != newname)
-                return step;
-            return [oldname, Dagoba.extend(step[1], defaults)];
-        });
+                acc.push(step);
+            else
+                oldnames.forEach(function(oldname)
+                {
+                    var defaults = oldname[1] || [];
+                    acc.push([oldname[0], Dagoba.extend(step[1].slice(), defaults)]);
+                });
+            return acc;
+        }, []);
     }, 100);
 };
 
