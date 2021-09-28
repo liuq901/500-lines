@@ -1,0 +1,4 @@
+code{display: block; margin-left: 2em;}
+#tests div{margin: 3px; background-color: HoneyDew;}
+#tests div.error{background-color: LavenderBlush;}
+#tests header{margin: 3px; background-color: AliceBlue; font-size: 0.1em;}

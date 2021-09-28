@@ -385,7 +385,7 @@ Dagoba.filterEdges = function(filter)
             return edge._label == filter;
 
         if (Array.isArray(filter))
-            return !!~filter.indexOf(edge.__label);
+            return !!~filter.indexOf(edge._label);
 
         return Dagoba.objectFilter(edge, filter);
     };
