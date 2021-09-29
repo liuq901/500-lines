@@ -113,6 +113,6 @@ class BinaryTree(LogicalBase):
     def _find_max(self, node):
         while True:
             next_node = self._follow(node.right_ref)
-            if new_node is None:
+            if next_node is None:
                 return node
             node = next_node

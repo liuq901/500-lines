@@ -1,7 +1,7 @@
 import os
 import struct
 
-import portalocker
+from dbdb.lock import lock_file, unlock_file
 
 class Storage(object):
     SUPERBLOCK_SIZE = 4096
@@ -23,7 +23,7 @@ class Storage(object):
 
     def lock(self):
         if not self.locked:
-            portalocker.lock(self._f, portalocker.LOCK_EX)
+            lock_file(self._f)
             self.locked = True
             return True
         else:
@@ -32,7 +32,7 @@ class Storage(object):
     def unlock(self):
         if self.locked:
             self._f.flush()
-            portalocker.unlock(self._f)
+            unlock_file(self._f)
             self.locked = False
 
     def _seek_end(self):
