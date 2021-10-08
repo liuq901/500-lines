@@ -6,7 +6,7 @@
              (format stream "Failed assertions '~s'"
                      (assertion condition)))))
 
-(defmacro asster-http (assertion)
+(defmacro assert-http (assertion)
   `(unless ,assertion
      (error (make-instance 'http-assertion-error :assertion ',assertion))))
 
@@ -14,10 +14,9 @@
   ((tries :accessor tries :initform 0)
    (contents :accessor contents :initform nil)
    (bi-stream :reader bi-stream :initarg :bi-stream)
-   (total-bufferd :accessor total-bufferd :initform 0)
+   (total-buffered :accessor total-buffered :initform 0)
    (started :reader started :initform (get-universal-time))
-   (request :accessor request :initform nil)
-   (expecting :accessor expecting :initform 0)))
+   (request :accessor request :initform nil)))
 
 (defclass request ()
   ((resource :accessor resource :initarg :resource)
@@ -30,12 +29,6 @@
    (response-code :accessor response-code :initform "200 OK" :initarg :response-code)
    (keep-alive? :accessor keep-alive? :initform nil :initarg :keep-alive?)
    (body :accessor body :initform nil :initarg :body)))
-
-(defclass sse ()
-  ((id :reader id :initarg id :initform nil)
-   (event :reader event :initarg :event :initform nil)
-   (retry :reader retry :initarg :retry :initform nil)
-   (data :reader data :initarg data)))
 
 (defparameter +404+
   (make-instance 'response :response-code "404 Not Found"

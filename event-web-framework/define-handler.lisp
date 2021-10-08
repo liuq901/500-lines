@@ -39,7 +39,7 @@
                   :type-assertion `(every #'numberp ,parameter))
 
 (defun arg-exp (arg-sym)
-  `(aif (cdr (assoc ,(->keyword arg-sym) parameter))
+  `(aif (cdr (assoc ,(->keyword arg-sym) parameters))
         (uri-decode it)
         (error (make-instance 'http-assertion-error :assertion ',arg-sym))))
 
@@ -52,8 +52,8 @@
                   ((list* arg-sym type restrictions)
                    (setf res
                          `(let ((,arg-sym ,(or (type-expression (arg-exp arg-sym) type) (arg-exp arg-sym))))
-                            ,@(awhen (type-assertion arg-sym type) `((asster-http ,it)))
-                            ,@(loop for r in restrictions collect `(asster-http ,r))
+                            ,@(awhen (type-assertion arg-sym type) `((assert-http ,it)))
+                            ,@(loop for r in restrictions collect `(assert-http ,r))
                             ,res))))
         finally (return res)))
 
@@ -67,6 +67,7 @@
                                :content-type ,content-type
                                :body (progn ,@body))))
                     (write! res socket)
+                    (force-output (socket-stream socket))
                     (socket-close socket)))))
 
 (defmacro make-stream-handler ((&rest args) &body body)
@@ -91,5 +92,5 @@
 (defmacro define-handler ((name &key (close-socket? t) (content-type "text/html")) (&rest args) &body body)
   (if close-socket?
     `(bind-handler ,name (make-closing-handler (:content-type ,content-type) ,args ,@body))
-    `(bind-handler ,name (make-stream-handler ,args, @body))))
+    `(bind-handler ,name (make-stream-handler ,args ,@body))))
 

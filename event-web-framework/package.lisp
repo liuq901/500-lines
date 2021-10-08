@@ -5,23 +5,15 @@
     (:import-from #:anaphora :aif :awhen :aand :it)
     (:import-from #:trivial-timeout :with-timeout)
     (:export
-      :define-closing-handler
-      :define-json-handler
-      :define-stream-handler
-      :define-redirect-handler
-      :define-file-handler
-
-      :define-http-type :parameter :erstrictions
-
+      :define-handler
+      :define-http-type
       :assert-http
-      :root :scoket :session :parameters
-      :new-session! :new-session-hook! :clear-session-hooks! :get-session! :lookup
-      :subscribe! :publish!
+
       :start))
 
 (in-package :house)
 
 (defparameter +max-request-size+ 50000)
-(defparameter +max-reqest-age+ 30)
+(defparameter +max-request-age+ 30)
 (defparameter +max-buffer-tries+ 10)
 

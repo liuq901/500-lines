@@ -22,8 +22,8 @@
       (ignore-errors
         (remhash ready conns)
         (socket-close ready))
-      (let ((too-big? (> (total-bufferd buf) +max-request-size+))
-            (too-old? (> (- (get-universal-time) (started buf)) +max-reqest-age+))
+      (let ((too-big? (> (total-buffered buf) +max-request-size+))
+            (too-old? (> (- (get-universal-time) (started buf)) +max-request-age+))
             (too-needy? (> (tries buf) +max-buffer-tries+)))
         (cond (too-big?
                 (error! +413+ ready)
@@ -31,11 +31,8 @@
               ((or too-old? too-needy?)
                (error! +400+ ready)
                (remhash ready conns))
-              ((and (request buf) (zerop (expecting buf)))
+              ((request buf)
                (remhash ready conns)
-               (when (contents buf)
-                 (setf (parameters (request buf))
-                       (nconc (parse buf) (parameters (request buf)))))
                (handler-case
                  (handle-request ready (request buf))
                  (http-assertion-error () (error! +400+ ready))
@@ -49,18 +46,16 @@
   (handler-case
     (let ((stream (bi-stream buffer)))
       (incf (tries buffer))
-      (loop for char = (ready-char-no-hang stream) until (null char)
+      (loop for char = (read-char-no-hang stream) until (null char)
             do (push char (contents buffer))
-            do (incf (total-bufferd buffer))
-            when (request buffer) do (decf (expecting buffer))
+            do (incf (total-buffered buffer))
             when (starts-with-subseq
-                   '(\#linefeed \#return \#linefeed \#return)
+                   '(#\newline #\newline)
                    (contents buffer))
-            do (multiple-value-bind (parsed expcecting) (parse buffer)
-                 (setf (request buffer) parsed
-                       (expecting buffer) expecting)
+            do (multiple-value-bind (parsed) (parse buffer)
+                 (setf (request buffer) parsed)
                  (return char))
-            when (> (total-bufferd buffer) +max-request-size+) return char
+            when (> (total-buffered buffer) +max-request-size+) return char
             finally (return char)))
     (error () :eof)))
 
@@ -74,7 +69,7 @@
   (let ((lines (split "\\r?\\n" str)))
     (destructuring-bind (req-type path http-version) (split " " (pop lines))
       (declare (ignore req-type))
-      (asster-http (string= http-version "HTTP/1.1"))
+      (assert-http (string= http-version "HTTP/1.1"))
       (let* ((path-pieces (split "\\?" path))
              (resource (first path-pieces))
              (parameters (second path-pieces))
@@ -98,8 +93,7 @@
        (error! +404+ socket)))
 
 (defun crlf (&optional (stream *standard-output*))
-  (write-char #\return stream)
-  (write-char #\linefeed stream)
+  (write-char #\newline stream)
   (values))
 
 (defmethod write! ((res response) (socket usocket))
@@ -124,34 +118,10 @@
     (trivial-timeout:timeout-error ()
                                    (values))))
 
-(defmethod write! ((res sse) (socket usocket))
-  (let ((stream (flex-stream socket)))
-    (handler-case
-      (with-timeout (.2)
-                    (format
-                      stream "~@[id: ~a~%~]~@[event: ~a~%~]~@[retry: ~a~%~]data: ~a~%~%"
-                      (id res) (event res) (retry res) (data res)))
-      (trivial-timeout:timeout-error ()
-                                     (values)))))
-
 (defmethod error! ((err response) (socket usocket) &optional instance)
   (declare (ignorable instance))
   (ignore-errors
     (write! err socket)
+    (force-output (socket-stream socket))
     (socket-close socket)))
-
-(defmethod subscribe! ((channel symbol) (socket usocket))
-  (push socket (lookup channel *channels*))
-  nil)
-
-(defmethod publish! ((channel symbol) (message string))
-  (awhen (lookup channel *channels*)
-         (setf (lookup channel *channels*)
-               (loop with msg = (make-instance 'sse :data message)
-                     for socket in it
-                     when (ignore-errors
-                            (write! msg socket)
-                            (force-output (socket-stream socket))
-                            socket)
-                     collect it))))
 

@@ -2,10 +2,7 @@
 (load "house.asd")
 (asdf:load-system "house")
 
-(write-line "hello-world")
+(house:define-handler (hello-world :content-type "text/plain") ()
+                "Hello world!")
 
-;(define-closing-handler (hello-world :content-type "text/plain") ()
-;                        "Hello world!")
-;(start 4040)
-
-(exit)
+(house:start 4040)
