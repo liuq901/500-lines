@@ -1,11 +1,11 @@
 (ns fdb.core
   [:use [fdb storage query constructs]]
-  [:require [clojure.set :as CS :only (union difference intersection)]])
+  [:require [clojure.set :as CS :only (union difference)]])
 
 (defn- next-ts [db] (inc (:curr-time db)))
 
 (defn- next-id [db ent]
-  (let [top-id (:top-db db)
+  (let [top-id (:top-id db)
         ent-id (:id ent)
         increased-id (inc top-id)]
     (if (= ent-id :db/no-id-yet)
@@ -36,7 +36,7 @@
 (defn- add-entity-to-index [ent layer ind-name]
   (let [ent-id (:id ent)
         index (ind-name layer)
-        all-attrs (vals (:attr ent))
+        all-attrs (vals (:attrs ent))
         relevant-attrs (filter #((usage-pred index) %) all-attrs)
         add-in-index-fn (fn [ind attr] (update-attr-in-index ind ent-id (:name attr) (:value attr) :db/add))]
     (assoc layer ind-name (reduce add-in-index-fn index relevant-attrs))))
@@ -48,7 +48,7 @@
 
 (defn add-entity [db ent]
   (let [[fixed-ent next-top-id] (fix-new-entity db ent)
-        layer-with-updated-storage (update-in (last (:layers db)) [:stroage] write-entity fixed-ent)
+        layer-with-updated-storage (update-in (last (:layers db)) [:storage] write-entity fixed-ent)
         add-fn (partial add-entity-to-index fixed-ent)
         new-layer (reduce add-fn layer-with-updated-storage (indices))]
     (assoc db :layers (conj (:layers db) new-layer) :top-id next-top-id)))
@@ -60,7 +60,7 @@
 (defn- update-attr [attr new-val new-ts operation]
   {:pre [(if (single? attr)
            (contains? #{:db/reset-to :db/remove} operation)
-           (contains? #{:db/rest-to :db/add :db/remove} operation))]}
+           (contains? #{:db/reset-to :db/add :db/remove} operation))]}
   (-> attr
       (update-attr-modification-time new-ts)
       (update-attr-value new-val operation)))

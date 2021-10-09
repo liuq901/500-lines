@@ -24,7 +24,7 @@
 (defmacro pred-clause [clause]
   (loop [[trm# & rst-trm#] clause exprs# [] metas# []]
     (if trm#
-      (recur rst-trm# (conj exprs# `(clause-term-expr ~ trm#)) (conj metas# `(clause-term-meta ~ trm#)))
+      (recur rst-trm# (conj exprs# `(clause-term-expr ~trm#)) (conj metas# `(clause-term-meta ~trm#)))
       (with-meta exprs# {:db/variable metas#}))))
 
 (defmacro q-clauses-to-pred-clause [clauses]
@@ -62,11 +62,11 @@
 
 (defn bind-variables-to-query [q-res index]
   (let [seq-res-path (mapcat (partial combine-path-and-meta (from-eav index)) q-res)
-        res-path (map #(->> %1 (partition 2) (aplly (to-eav index))) seq-res-path)]
+        res-path (map #(->> %1 (partition 2) (apply (to-eav index))) seq-res-path)]
     (reduce #(assoc-in %1 (butlast %2) (last %2)) {} res-path)))
 
 (defn query-index [index pred-clauses]
-  (let [result-clauses (filter-index index pred-clause)
+  (let [result-clauses (filter-index index pred-clauses)
         relevant-items (items-that-answer-all-conditions (map last result-clauses) (count pred-clauses))
         cleaned-result-clauses (map (partial mask-path-leaf-with-items relevant-items) result-clauses)]
     (filter #(not-empty (last %)) cleaned-result-clauses)))
@@ -95,7 +95,7 @@
 
 (defn locate-vars-in-query-res [vars-set q-res]
   (let [[e-pair av-map] q-res
-        e-res (resultify-av-pair vars-set [] e-res e-pair)]
+        e-res (resultify-bind-pair vars-set [] e-pair)]
   (map (partial resultify-av-pair vars-set e-res) av-map)))
 
 (defn unify [binded-res-col needed-vars]

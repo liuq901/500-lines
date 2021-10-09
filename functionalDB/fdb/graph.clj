@@ -10,7 +10,7 @@
 (defn incoming-refs [db ts ent-id & ref-names]
   (let [vaet (indx-at db :VAET ts)
         all-attr-map (vaet ent-id)
-        filtered-map (if ref-names (select-keys ref-name all-attr-map) all-attr-map)]
+        filtered-map (if ref-names (select-keys ref-names all-attr-map) all-attr-map)]
     (reduce into #{} (vals filtered-map))))
 
 (defn- remove-explored [candidates explored structure-fn]
@@ -29,4 +29,4 @@
   ([start-ent-id db algo direction ts]
    (let [structure-fn (if (= :graph/bfs algo) vec list*)
          explore-fn (if (= :graph/outgoint direction) outgoing-refs incoming-refs)]
-     (traverse [start-ent-id] #{} (partial exploring-fn db ts) (partial entity-at db ts) structure-fn))))
+     (traverse [start-ent-id] #{} (partial explore-fn db ts) (partial entity-at db ts) structure-fn))))
