@@ -94,7 +94,7 @@
       (assoc layer ind-name updated-index))))
 
 (defn- put-entity [storage e-id new-attr]
-  (assoc-in (get-entity storage e-id) [:attr (:name new-attr)] new-attr))
+  (assoc-in (get-entity storage e-id) [:attrs (:name new-attr)] new-attr))
 
 (defn- update-layer [layer ent-id old-attr updated-attr new-val operation]
   (let [storage (:storage layer)
@@ -128,7 +128,7 @@
 
 (defn- remove-back-refs [db e-id layer]
   (let [reffing-datoms (reffing-to e-id layer)
-        remove-fn (fn [d [e a]] (update-entity db e a e-id :db/remove))
+        remove-fn (fn [d [e a]] (update-entity db e a #{e-id} :db/remove))
         clean-db (reduce remove-fn db reffing-datoms)]
     (last (:layers clean-db))))
 
