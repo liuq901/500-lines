@@ -7,6 +7,7 @@ import processing.core.PApplet;
 import imagefilter.color.ColorHelper;
 import imagefilter.color.PixelColorHelper;
 import imagefilter.model.ImageState;
+import imagefilter.test.UnitTest;
 
 @SuppressWarnings("serial")
 public class ImageFilterApp extends PApplet
@@ -35,7 +36,9 @@ public class ImageFilterApp extends PApplet
 
     public static void main(String[] args)
     {
-        PApplet.main("imagefilter.app.ImageState");
+        new UnitTest().test();
+
+        PApplet.main("imagefilter.app.ImageFilterApp");
     }
 
     @Override
@@ -44,7 +47,7 @@ public class ImageFilterApp extends PApplet
         noLoop();
         imageState = new ImageState(new ColorHelper(new PixelColorHelper()));
 
-        size(IMAGE_MAX + SIDE_BAR_PADDING, IMAGE_MAX);
+        size(IMAGE_MAX + SIDE_BAR_WIDTH, IMAGE_MAX);
         background(0);
 
         chooseFile();
