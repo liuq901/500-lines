@@ -2,9 +2,20 @@ import collections
 import dis
 import functools
 import inspect
+import io
 import operator
 import sys
 import types
+
+class Cell(object):
+    def __init__(self, value):
+        self.set(value)
+
+    def get(self):
+        return self.value
+
+    def set(self, value):
+        self.value = value
 
 class Frame(object):
     def __init__(self, code_obj, global_names, local_names, prev_frame):
@@ -23,6 +34,22 @@ class Frame(object):
         self.last_instruction = 0
         self.block_stack = []
 
+        if code_obj.co_cellvars:
+            self.cells = {}
+            if not prev_frame.cells:
+                prev_frame.cells = {}
+            for var in code_obj.co_cellvars:
+                cell = Cell(self.local_names[var])
+                prev_frame.cells[var] = self.cells[var] = cell
+        else:
+            self.cells = None
+
+        if code_obj.co_freevars:
+            if not self.cells:
+                self.cells = {}
+            for var in code_obj.co_freevars:
+                self.cells[var] = prev_frame.cells[var]
+
     def top(self):
         return self.stack[-1]
 
@@ -39,6 +66,12 @@ class Frame(object):
             return ret
         else:
             return []
+
+    def rotate(self, n):
+        tmp = self.top()
+        for i in range(1, n):
+            self.stack[-i] = self.stack[-(i + 1)]
+        self.stack[-n] = tmp
 
     def push_block(self, b_type, handler=None):
         stack_height = len(self.stack)
@@ -92,12 +125,6 @@ class Function(object):
         frame = self._vm.make_frame(self.func_code, callargs, self.func_globals, {})
         return self._vm.run_frame(frame)
 
-    def get_function(self):
-        @functools.wraps(self)
-        def wrapper(*args, **kwargs):
-            return self(*args, **kwargs)
-        return wrapper
-
 def make_cell(value):
     fn = (lambda x: lambda: x)(value)
     return fn.__closure__[0]
@@ -109,8 +136,10 @@ class VirtualMachine(object):
     def __init__(self):
         self.frames = []
         self.frame = None
+        self.extended_arg = 0
         self.return_value = None
         self.last_exception = None
+        self.log = io.StringIO()
 
     def make_frame(self, code, callargs={}, global_names=None, local_names=None):
         if global_names is not None and local_names is not None:
@@ -121,7 +150,7 @@ class VirtualMachine(object):
         else:
             global_names = local_names = {
                 '__builtins__': __builtins__,
-                '__name__': '__main',
+                '__name__': '__main__',
                 '__doc__': None,
                 '__package__': None,
             }
@@ -159,7 +188,8 @@ class VirtualMachine(object):
         byteCode = f.code_obj.co_code[opoffset]
         f.last_instruction += 2
         byte_name = dis.opname[byteCode]
-        arg_val = f.code_obj.co_code[opoffset + 1]
+        arg_val = f.code_obj.co_code[opoffset + 1] + (self.extended_arg << 8)
+        self.extended_arg = 0
         if byteCode in dis.hasconst:
             arg = f.code_obj.co_consts[arg_val]
         elif byteCode in dis.hasname:
@@ -168,6 +198,12 @@ class VirtualMachine(object):
             arg = f.code_obj.co_varnames[arg_val]
         elif byteCode in dis.hasjrel:
             arg = f.last_instruction + arg_val
+        elif byteCode in dis.hasfree:
+            if arg_val < len(f.code_obj.co_cellvars):
+                arg = f.code_obj.co_cellvars[arg_val]
+            else:
+                idx = arg_val - len(f.code_obj.co_cellvars)
+                arg = f.code_obj.co_freevars[idx]
         else:
             arg = arg_val
         argument = [arg]
@@ -183,6 +219,8 @@ class VirtualMachine(object):
                     self.unaryOperator(byte_name[6:])
                 elif byte_name.startswith('BINARY_'):
                     self.binaryOperator(byte_name[7:])
+                elif byte_name.startswith('INPLACE_'):
+                    self.binaryOperator(byte_name[8:])
                 else:
                     raise VirtualMachineError(f'unsupported bytecode type {byte_name}')
             else:
@@ -190,6 +228,8 @@ class VirtualMachine(object):
         except BaseException:
             self.last_exception = sys.exc_info()[:2] + (None,)
             why = 'exception'
+
+        print(byte_name, argument, self.frame.stack, file=self.log)
 
         return why
 
@@ -227,10 +267,18 @@ class VirtualMachine(object):
 
     def run_frame(self, frame):
         self.push_frame(frame)
+
+        yield_list = None
         while True:
             byte_name, argument = self.parse_byte_and_args()
 
             why = self.dispatch(byte_name, argument)
+
+            if why == 'yield':
+                if yield_list is None:
+                    yield_list = []
+                yield_list.append(self.return_value)
+                why = None
 
             while why and frame.block_stack:
                 why = self.manage_block_stack(why)
@@ -246,11 +294,16 @@ class VirtualMachine(object):
             e.__traceback__ = tb
             raise e
 
+        if yield_list is not None:
+            self.return_value = yield_list
         return self.return_value
 
     def check_zero_arg(self, arg, byte_name):
         if arg != 0:
             raise VirtualMachineError(f'{byte_name} has non-zero argument!')
+
+    def byte_NOP(self, arg):
+        self.check_zero_arg(arg, 'NOP')
 
     def byte_LOAD_CONST(self, const):
         self.frame.push(const)
@@ -262,6 +315,23 @@ class VirtualMachine(object):
     def byte_DUP_TOP(self, arg):
         self.check_zero_arg(arg, 'DUP_TOP')
         self.frame.push(self.frame.top())
+
+    def byte_DUP_TOP_TWO(self, arg):
+        self.check_zero_arg(arg, 'DUP_TOP_TWO')
+        self.frame.push(self.frame.stack[-2])
+        self.frame.push(self.frame.stack[-2])
+
+    def byte_ROT_TWO(self, arg):
+        self.check_zero_arg(arg, 'ROT_TWO')
+        self.frame.rotate(2)
+
+    def byte_ROT_THREE(self, arg):
+        self.check_zero_arg(arg, 'ROT_THREE')
+        self.frame.rotate(3)
+
+    def byte_ROT_FOUR(self, arg):
+        self.check_zero_arg(arg, 'ROT_FOUR')
+        self.frame.rotate(4)
 
     def byte_LOAD_NAME(self, name):
         frame = self.frame
@@ -282,13 +352,19 @@ class VirtualMachine(object):
         del self.frame.local_names[name]
 
     def byte_LOAD_FAST(self, name):
+        if name.startswith('.'):
+            name = name.replace('.', 'implicit')
         if name in self.frame.local_names:
             val = self.frame.local_names[name]
         else:
             raise UnboundLocalError(f'local variable \'{name}\' referenced before assignment')
+        self.frame.push(val)
 
     def byte_STORE_FAST(self, name):
         self.frame.local_names[name] = self.frame.pop()
+
+    def byte_DELETE_FAST(self, name):
+        del self.frame.local_names[name]
 
     def byte_LOAD_GLOBAL(self, name):
         f = self.frame
@@ -299,6 +375,18 @@ class VirtualMachine(object):
         else:
             raise NameError(f'global name \'{name}\' is not defined')
         f.push(val)
+
+    def byte_STORE_GLOBAL(self, name):
+        self.frame.global_names[name] = self.frame.pop()
+
+    def byte_LOAD_DEREF(self, name):
+        self.frame.push(self.frame.cells[name].get())
+
+    def byte_STORE_DEREF(self, name):
+        self.frame.cells[name].set(self.pop())
+
+    def byte_EXTENDED_ARG(self, ext):
+        self.extended_arg = ext + (self.extended_arg << 8)
 
     UNARY_OPERATORS = {
         'POSITIVE': operator.pos,
@@ -312,7 +400,7 @@ class VirtualMachine(object):
         self.frame.push(self.UNARY_OPERATORS[op](x))
 
     BINARY_OPERATORS = {
-        'POWER': pow,
+        'POWER': operator.pow,
         'MULTIPLY': operator.mul,
         'FLOOR_DIVIDE': operator.floordiv,
         'TRUE_DIVIDE': operator.truediv,
@@ -349,6 +437,13 @@ class VirtualMachine(object):
         x, y = self.frame.popn(2)
         self.frame.push(self.COMPARE_OPERATORS[opnum](x, y))
 
+    def byte_IS_OP(self, invert):
+        x, y = self.frame.popn(2)
+        if invert == 1:
+            self.frame.push(x is not y)
+        else:
+            self.frame.push(x is y)
+
     def byte_LOAD_ATTR(self, attr):
         obj = self.frame.pop()
         val = getattr(obj, attr)
@@ -358,10 +453,19 @@ class VirtualMachine(object):
         val, obj = self.frame.popn(2)
         setattr(obj, name, val)
 
+    def byte_DELETE_ATTR(self, name):
+        obj = self.frame.pop()
+        delattr(obj, name)
+
     def byte_STORE_SUBSCR(self, arg):
         self.check_zero_arg(arg, 'STORE_SUBSCR')
         val, obj, subscr = self.frame.popn(3)
         obj[subscr] = val
+
+    def byte_DELETE_SUBSCR(self, arg):
+        self.check_zero_arg(arg, 'DELETE_SUBSCR')
+        obj, subscr = self.frame.popn(2)
+        del obj[subscr]
 
     def byte_BUILD_TUPLE(self, count):
         elts = self.frame.popn(count)
@@ -371,8 +475,47 @@ class VirtualMachine(object):
         elts = self.frame.popn(count)
         self.frame.push(elts)
 
-    def byte_BUILD_MAP(self, size):
-        self.frame.push({})
+    def byte_BUILD_SET(self, count):
+        elts = self.frame.popn(count)
+        self.frame.push(set(elts))
+
+    def byte_BUILD_MAP(self, count):
+        elts = self.frame.popn(count * 2)
+        self.frame.push({elts[i]: elts[i + 1] for i in range(0, count * 2, 2)})
+
+    def byte_BUILD_CONST_KEY_MAP(self, count):
+        keys = self.frame.pop()
+        elts = self.frame.popn(count)
+        self.frame.push({keys[i]: elts[i] for i in range(count)})
+
+    def byte_BUILD_STRING(self, count):
+        elts = self.frame.popn(count)
+        self.frame.push(''.join(elts))
+
+    def byte_LIST_TO_TUPLE(self, arg):
+        self.check_zero_arg(arg, 'LIST_TO_TUPLE')
+        the_list = self.frame.pop()
+        self.frame.push(tuple(the_list))
+
+    def byte_LIST_EXTEND(self, count):
+        val = self.frame.pop()
+        the_list = self.frame.stack[-count]
+        the_list.extend(val)
+
+    def byte_SET_UPDATE(self, count):
+        val = self.frame.pop()
+        the_set = self.frame.stack[-count]
+        the_set.update(val)
+
+    def byte_DICT_UPDATE(self, count):
+        val = self.frame.pop()
+        the_dict = self.frame.stack[-count]
+        the_dict.update(val)
+
+    def byte_DICT_MERGE(self, count):
+        val = self.frame.pop()
+        the_dict = self.frame.stack[-count]
+        the_dict.update(val)
 
     def byte_STORE_MAP(self, arg):
         self.check_zero_arg(arg, 'STORE_MAP')
@@ -399,6 +542,16 @@ class VirtualMachine(object):
         val = self.frame.pop()
         the_list = self.frame.stack[-count]
         the_list.append(val)
+
+    def byte_SET_ADD(self, count):
+        val = self.frame.pop()
+        the_set = self.frame.stack[-count]
+        the_set.add(val)
+
+    def byte_MAP_ADD(self, count):
+        key, val = self.frame.popn(2)
+        the_map = self.frame.stack[-count]
+        the_map[key] = val
 
     def byte_JUMP_FORWARD(self, jump):
         self.jump(jump)
@@ -434,11 +587,11 @@ class VirtualMachine(object):
         self.frame.push_block('loop', dest)
 
     def byte_GET_ITER(self, arg):
-        self.check_zero_arg(arg, GET_ITER)
+        self.check_zero_arg(arg, 'GET_ITER')
         self.frame.push(iter(self.frame.pop()))
 
     def byte_FOR_ITER(self, jump):
-        iterobj = sefl.frame.top()
+        iterobj = self.frame.top()
         try:
             v = next(iterobj)
             self.frame.push(v)
@@ -462,6 +615,10 @@ class VirtualMachine(object):
 
     def byte_POP_BLOCK(self):
         self.frame.pop_block()
+
+    def byte_LOAD_ASSERTION_ERROR(self, arg):
+        self.check_zero_arg(arg, 'LOAD_ASSERTION_ERROR')
+        self.frame.push(AssertionError())
 
     def byte_RAISE_VARARGS(self, argc):
         cause = exc = None
@@ -495,12 +652,35 @@ class VirtualMachine(object):
         if current_exc is not None:
             self.last_exception = current_exc
 
-    def byte_MAKE_FUNCTION(self, argc):
+    def byte_LOAD_METHOD(self, name):
+        obj = self.frame.pop()
+        method = getattr(obj, name)
+        self.frame.push(method)
+
+    def byte_CALL_METHOD(self, arg):
+        lenPos = arg
+        posargs = self.frame.popn(lenPos)
+
+        func = self.frame.pop()
+        retval = func(*posargs)
+        self.frame.push(retval)
+
+    def byte_LOAD_CLOSURE(self, name):
+        self.frame.push(self.frame.cells[name])
+
+    def byte_MAKE_FUNCTION(self, flag):
         name = self.frame.pop()
         code = self.frame.pop()
-        defaults = self.frame.popn(argc)
+
+        defaults = ()
+        closure = ()
+        if flag & 0x08:
+            closure = self.frame.pop()
+        if flag & 0x01:
+            defaults = self.frame.pop()
+
         globs = self.frame.global_names
-        fn = Function(name, code, globs, defaults, None, self).get_function()
+        fn = Function(name, code, globs, defaults, closure, self)
         self.frame.push(fn)
 
     def byte_CALL_FUNCTION(self, arg):
@@ -508,14 +688,43 @@ class VirtualMachine(object):
         posargs = self.frame.popn(lenPos)
 
         func = self.frame.pop()
-        frame = self.frame
+        if func.__name__ == '__build_class__':
+            posargs[0] = posargs[0]._func
         retval = func(*posargs)
+        self.frame.push(retval)
+
+    def byte_CALL_FUNCTION_KW(self, arg):
+        kw = self.frame.pop()
+        lenKw = len(kw)
+        lenPos = arg - lenKw
+        kwargs = self.frame.popn(lenKw)
+        posargs = self.frame.popn(lenPos)
+        kwargs = {kw[i]: kwargs[i] for i in range(lenKw)}
+
+        func = self.frame.pop()
+        retval = func(*posargs, **kwargs)
+        self.frame.push(retval)
+
+    def byte_CALL_FUNCTION_EX(self, flag):
+        if flag == 1:
+            posargs, kwargs = self.frame.popn(2)
+        else:
+            posargs = []
+            kwargs = {}
+
+        func = self.frame.pop()
+        retval = func(*posargs, **kwargs)
         self.frame.push(retval)
 
     def byte_RETURN_VALUE(self, arg):
         self.check_zero_arg(arg, 'RETURN_VALUE')
         self.return_value = self.frame.pop()
         return 'return'
+
+    def byte_YIELD_VALUE(self, arg):
+        self.check_zero_arg(arg, 'YIELD_VALUE')
+        self.return_value = self.frame.top()
+        return 'yield'
 
     def byte_IMPORT_NAME(self, name):
         level, fromlist = self.frame.popn(2)
@@ -525,6 +734,13 @@ class VirtualMachine(object):
     def byte_IMPORT_FROM(self, name):
         mod = self.frame.top()
         self.frame.push(getattr(mod, name))
+
+    def byte_IMPORT_STAR(self, arg):
+        self.check_zero_arg(arg, 'IMPORT_STAR')
+        mod = self.frame.pop()
+        for attr in dir(mod):
+            if not attr.startswith('_'):
+                self.frame.local_names[attr] = getattr(mod, attr)
 
     def byte_LOAD_BUILD_CLASS(self, arg):
         self.check_zero_arg(arg, 'LOAD_BUILD_CLASS')
