@@ -373,3 +373,78 @@ class TestIt(vmtest.VmTestCase):
 
             add(7, 3)
         ''')
+
+class TestLoops(vmtest.VmTestCase):
+    def test_for(self):
+        self.assert_ok('''
+            for i in range(10):
+                print(i)
+            print('done')
+        ''')
+
+    def test_break(self):
+        self.assert_ok('''
+            for i in range(10):
+                print(i)
+                if i == 7:
+                    break
+            print('done')
+        ''')
+
+    def test_continue(self):
+        self.assert_ok('''
+            for i in range(10):
+                if i % 3 == 0:
+                    continue
+                print(i)
+            print('done')
+        ''')
+
+    def test_continue_in_try_except(self):
+        self.assert_ok('''
+            for i in range(10):
+                try:
+                    if i % 3 == 0:
+                        continue
+                    print(i)
+                except ValueError:
+                    pass
+            print('done')
+        ''')
+
+    def test_continue_in_try_finally(self):
+        self.assert_ok('''
+            for i in range(10):
+                try:
+                    if i % 3 == 0:
+                        continue
+                    print(i)
+                finally:
+                    print('.')
+            print('done')
+        ''')
+
+class TestComparisons(vmtest.VmTestCase):
+    def test_in(self):
+        self.assert_ok('''
+            assert 'x' in 'xyz'
+            assert 'x' not in 'abc'
+            assert 'x' in ('x', 'y', 'z')
+            assert 'x' not in ('a', 'b', 'c')
+        ''')
+
+    def test_less(self):
+        self.assert_ok('''
+            assert 1 < 3
+            assert 1 <= 2 and 1 <= 1
+            assert 'a' < 'b'
+            assert 'a' <= 'b' and 'a' <= 'a'
+        ''')
+
+    def test_greater(self):
+        self.assert_ok('''
+            assert 3 > 1
+            assert 3 >= 1 and 3 >= 3
+            assert 'z' >= 'a'
+            assert 'z' >= 'a' and 'z' >= 'z'
+        ''')

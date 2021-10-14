@@ -91,7 +91,7 @@ class Frame(object):
 
         if block.type == 'except-handler':
             traceback, value, exctype = self.popn(3)
-            return exc_type, value, traceback
+            return exctype, value, traceback
 
 Block = collections.namedtuple('Block', ['type', 'handler', 'stack_height'])
 
@@ -253,7 +253,7 @@ class VirtualMachine(object):
             self.frame.push_block('except-handler')
             exctype, value, tb = self.last_exception
             self.frame.push(tb, value, exctype)
-            self.frame.push(tb, vlaue, exctype)
+            self.frame.push(tb, value, exctype)
             self.jump(block.handler)
             why = None
         elif block.type == 'finally':
@@ -426,11 +426,6 @@ class VirtualMachine(object):
         operator.ne,
         operator.gt,
         operator.ge,
-        lambda x, y: x in y,
-        lambda x, y: x not in y,
-        lambda x, y: x is y,
-        lambda x, y: x is not y,
-        lambda x, y: issubclass(x, Exception) and issubclass(x, y),
     ]
 
     def byte_COMPARE_OP(self, opnum):
@@ -443,6 +438,13 @@ class VirtualMachine(object):
             self.frame.push(x is not y)
         else:
             self.frame.push(x is y)
+
+    def byte_CONTAINS_OP(self, invert):
+        x, y = self.frame.popn(2)
+        if invert == 1:
+            self.frame.push(x not in y)
+        else:
+            self.frame.push(x in y)
 
     def byte_LOAD_ATTR(self, attr):
         obj = self.frame.pop()
@@ -613,7 +615,8 @@ class VirtualMachine(object):
     def byte_SETUP_FINALLY(self, dest):
         self.frame.push_block('finally', dest)
 
-    def byte_POP_BLOCK(self):
+    def byte_POP_BLOCK(self, arg):
+        self.check_zero_arg(arg, 'POP_BLOCK')
         self.frame.pop_block()
 
     def byte_LOAD_ASSERTION_ERROR(self, arg):
