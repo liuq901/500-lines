@@ -1,6 +1,5 @@
 import collections
 import dis
-import functools
 import inspect
 import io
 import operator
@@ -39,7 +38,7 @@ class Frame(object):
             if not prev_frame.cells:
                 prev_frame.cells = {}
             for var in code_obj.co_cellvars:
-                cell = Cell(self.local_names[var])
+                cell = Cell(self.local_names.get(var))
                 prev_frame.cells[var] = self.cells[var] = cell
         else:
             self.cells = None
@@ -373,7 +372,7 @@ class VirtualMachine(object):
         elif name in f.builtin_names:
             val = f.builtin_names[name]
         else:
-            raise NameError(f'global name \'{name}\' is not defined')
+            raise NameError(f'name \'{name}\' is not defined')
         f.push(val)
 
     def byte_STORE_GLOBAL(self, name):
@@ -383,7 +382,7 @@ class VirtualMachine(object):
         self.frame.push(self.frame.cells[name].get())
 
     def byte_STORE_DEREF(self, name):
-        self.frame.cells[name].set(self.pop())
+        self.frame.cells[name].set(self.frame.pop())
 
     def byte_EXTENDED_ARG(self, ext):
         self.extended_arg = ext + (self.extended_arg << 8)
@@ -585,6 +584,11 @@ class VirtualMachine(object):
         else:
             self.frame.pop()
 
+    def byte_JUMP_IF_NOT_EXC_MATCH(self, jump):
+        x, y = self.frame.popn(2)
+        if not issubclass(x, y):
+            self.jump(jump)
+
     def byte_SETUP_LOOP(self, dest):
         self.frame.push_block('loop', dest)
 
@@ -623,6 +627,10 @@ class VirtualMachine(object):
         self.check_zero_arg(arg, 'LOAD_ASSERTION_ERROR')
         self.frame.push(AssertionError())
 
+    def byte_RERAISE(self, arg):
+        self.check_zero_arg(arg, 'RERAISE')
+        return 'exception'
+
     def byte_RAISE_VARARGS(self, argc):
         cause = exc = None
         if argc == 2:
@@ -647,7 +655,8 @@ class VirtualMachine(object):
         self.last_exception = exc_type, val, val.__traceback__
         return 'exception'
 
-    def byte_POP_EXCEPT(self):
+    def byte_POP_EXCEPT(self, arg):
+        self.check_zero_arg(arg, 'POP_EXCEPT')
         block = self.frame.pop_block()
         if block.type != 'except-handler':
             raise VirtualMachineError('popped block is not an except handler')
@@ -691,7 +700,7 @@ class VirtualMachine(object):
         posargs = self.frame.popn(lenPos)
 
         func = self.frame.pop()
-        if func.__name__ == '__build_class__':
+        if func is __build_class__:
             posargs[0] = posargs[0]._func
         retval = func(*posargs)
         self.frame.push(retval)
@@ -710,10 +719,10 @@ class VirtualMachine(object):
 
     def byte_CALL_FUNCTION_EX(self, flag):
         if flag == 1:
-            posargs, kwargs = self.frame.popn(2)
+            kwargs = self.frame.pop()
         else:
-            posargs = []
             kwargs = {}
+        posargs = self.frame.pop()
 
         func = self.frame.pop()
         retval = func(*posargs, **kwargs)
