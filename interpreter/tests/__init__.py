@@ -5,3 +5,4 @@ from .test_exceptions import TestExceptions
 from .test_functions import TestFunctions
 from .test_functions import TestClosures
 from .test_functions import TestGenerators
+from .test_with import TestWithStatement

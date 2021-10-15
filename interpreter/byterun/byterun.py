@@ -1,5 +1,6 @@
 import collections
 import dis
+import functools
 import inspect
 import io
 import operator
@@ -124,9 +125,24 @@ class Function(object):
         frame = self._vm.make_frame(self.func_code, callargs, self.func_globals, {})
         return self._vm.run_frame(frame)
 
+    def get_function(self):
+        @functools.wraps(self)
+        def wrapper(*args, **kwargs):
+            return self(*args, **kwargs)
+
+        wrapper.locals = self.func_locals
+        return wrapper
+
 def make_cell(value):
     fn = (lambda x: lambda: x)(value)
     return fn.__closure__[0]
+
+def build_class(func, name, *base):
+    origin = set(func.locals.keys())
+    func()
+    current = set(func.locals.keys()) - origin
+    attrs = {x: func.locals[x] for x in current}
+    return type(name, base, attrs)
 
 class VirtualMachineError(Exception):
     pass
@@ -224,7 +240,7 @@ class VirtualMachine(object):
                     raise VirtualMachineError(f'unsupported bytecode type {byte_name}')
             else:
                 why = bytecode_fn(*argument)
-        except BaseException:
+        except:
             self.last_exception = sys.exc_info()[:2] + (None,)
             why = 'exception'
 
@@ -294,7 +310,7 @@ class VirtualMachine(object):
             raise e
 
         if yield_list is not None:
-            self.return_value = yield_list
+            self.return_value = iter(yield_list)
         return self.return_value
 
     def check_zero_arg(self, arg, byte_name):
@@ -589,6 +605,17 @@ class VirtualMachine(object):
         if not issubclass(x, y):
             self.jump(jump)
 
+    def byte_SETUP_WITH(self, dest):
+        ctx = self.frame.pop()
+        self.frame.push(ctx.__exit__)
+        self.frame.push_block('finally', dest)
+        self.frame.push(ctx.__enter__())
+
+    def byte_WITH_EXCEPT_START(self, arg):
+        self.check_zero_arg(arg, 'WITH_EXCEPT_START')
+        func = self.frame.stack[-7]
+        self.frame.push(func(self.frame.stack[-1], self.frame.stack[-2], self.frame.stack[-3]))
+
     def byte_SETUP_LOOP(self, dest):
         self.frame.push_block('loop', dest)
 
@@ -692,7 +719,7 @@ class VirtualMachine(object):
             defaults = self.frame.pop()
 
         globs = self.frame.global_names
-        fn = Function(name, code, globs, defaults, closure, self)
+        fn = Function(name, code, globs, defaults, closure, self).get_function()
         self.frame.push(fn)
 
     def byte_CALL_FUNCTION(self, arg):
@@ -700,8 +727,6 @@ class VirtualMachine(object):
         posargs = self.frame.popn(lenPos)
 
         func = self.frame.pop()
-        if func is __build_class__:
-            posargs[0] = posargs[0]._func
         retval = func(*posargs)
         self.frame.push(retval)
 
@@ -756,7 +781,7 @@ class VirtualMachine(object):
 
     def byte_LOAD_BUILD_CLASS(self, arg):
         self.check_zero_arg(arg, 'LOAD_BUILD_CLASS')
-        self.frame.push(__build_class__)
+        self.frame.push(build_class)
 
     def byte_STORE_LOCALS(self, arg):
         self.check_zero_arg(arg, 'STORE_LOCALS')
