@@ -1,8 +1,20 @@
 from collections import defaultdict
 
+from OpenGL.GLUT import GLUT_DOWN
+from OpenGL.GLUT import GLUT_KEY_DOWN
+from OpenGL.GLUT import GLUT_KEY_LEFT
+from OpenGL.GLUT import GLUT_KEY_RIGHT
+from OpenGL.GLUT import GLUT_KEY_UP
+from OpenGL.GLUT import GLUT_LEFT_BUTTON
+from OpenGL.GLUT import GLUT_MIDDLE_BUTTON
+from OpenGL.GLUT import GLUT_RIGHT_BUTTON
+from OpenGL.GLUT import GLUT_WINDOW_HEIGHT
+from OpenGL.GLUT import GLUT_WINDOW_WIDTH
+from OpenGL.GLUT import glutGet
 from OpenGL.GLUT import glutKeyboardFunc
 from OpenGL.GLUT import glutMotionFunc
 from OpenGL.GLUT import glutMouseFunc
+from OpenGL.GLUT import glutPostRedisplay
 from OpenGL.GLUT import glutSpecialFunc
 
 import trackball
@@ -25,6 +37,15 @@ class Interaction(object):
 
     def register_callback(self, name, func):
         self.callbacks[name].append(func)
+
+    def trigger(self, name, *args, **kwargs):
+        for func in self.callbacks[name]:
+            func(*args, **kwargs)
+
+    def translate(self, x, y, z):
+        self.translation[0] += x
+        self.translation[1] += y
+        self.translation[2] += z
 
     def handle_mouse_button(self, button, mode, x, y):
         xSize, ySize = glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT)
@@ -65,11 +86,11 @@ class Interaction(object):
     def handle_keystroke(self, key, x, screen_y):
         xSize, ySize = glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT)
         y = ySize - screen_y
-        if key == 's':
+        if key == b's':
             self.trigger('place', 'sphere', x, y)
-        elif key == 'c':
+        elif key == b'c':
             self.trigger('place', 'cube', x, y)
-        elif key == 'f':
+        elif key == b'f':
             self.trigger('place', 'figure', x, y)
         elif key == GLUT_KEY_UP:
             self.trigger('scale', up=True)

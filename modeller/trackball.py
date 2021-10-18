@@ -1,5 +1,11 @@
 import math
+
+from OpenGL.GL import GL_VIEWPORT
 from OpenGL.GL import GLfloat
+from OpenGL.GL import glGetIntegerv
+
+M_SQRT1_2 = math.sqrt(0.5)
+M_SQRT2 = math.sqrt(2.0)
 
 def v_add(v1, v2):
     return [v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2]]
@@ -85,6 +91,22 @@ class Trackball(object):
         self.x = 0.0
         self.y = 0.0
 
+    def drag_to(self, x, y, dx, dy):
+        viewport = glGetIntegerv(GL_VIEWPORT)
+        width, height = float(viewport[2]), float(viewport[3])
+        x = (x * 2.0 - width) / width
+        dx = (2.0 * dx) / width
+        y = (y * 2.0 - height) / height
+        dy = (2.0 * dy) / height
+        q = self.rotate(x, y, dx, dy)
+        self.rotation = q_add(q, self.rotation)
+        self.count += 1
+        if self.count > self.RENORMCOUNT:
+            self.rotation = q_normalize(self.rotation)
+            self.count = 0
+        m = q_rotmatrix(self.rotation)
+        self.matrix = (GLfloat * len(m))(*m)
+
     def set_orientation(self, theta, phi):
         self.theta = theta
         self.phi = phi
@@ -98,14 +120,26 @@ class Trackball(object):
         m = q_rotmatrix(self.rotation)
         self.matrix = (GLfloat * len(m))(*m)
 
-    def __str__(self):
-        phi = str(self.phi)
-        theta = str(self.theta)
-        zoom = str(self.zoom)
-        return f'Trackball(phi={phi}, theta={theta}, zoom={zoom}'
+    def project(self, r, x, y):
+        d = math.sqrt(x * x + y * y)
+        if d < r * M_SQRT1_2:
+            z = math.sqrt(r * r - d * d)
+        else:
+            t = r / M_SQRT2
+            z = t * t / d
+        return z
 
-    def __repr__(self):
-        phi = str(self.phi)
-        theta = str(self.theta)
-        zoom = str(self.zoom)
-        return f'Trackball(phi={phi}, theta={theta}, zoom={zoom}'
+    def rotate(self, x, y, dx, dy):
+        if not dx and not dy:
+            return [0.0, 0.0, 0.0, 1.0]
+        last = [x, y, self.project(self.TRACKBALLSIZE, x, y)]
+        new = [x + dx, y + dx, self.project(self.TRACKBALLSIZE, x + dx, y + dy)]
+        a = v_cross(new, last)
+        d = v_sub(last, new)
+        t = v_length(d) / (2.0 * self.TRACKBALLSIZE)
+        if t > 1.0:
+            t = 1.0
+        if t < -1.0:
+            t = -1.0
+        phi = 2.0 * math.asin(t)
+        return q_from_axis_angle(a, phi)

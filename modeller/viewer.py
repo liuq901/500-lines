@@ -33,6 +33,7 @@ from OpenGL.GL import glPushMatrix
 from OpenGL.GL import glTranslated
 from OpenGL.GL import glViewport
 from OpenGL.GLU import gluPerspective
+from OpenGL.GLU import gluUnProject
 from OpenGL.GLUT import GLUT_RGB
 from OpenGL.GLUT import GLUT_SINGLE
 from OpenGL.GLUT import GLUT_WINDOW_HEIGHT
@@ -49,6 +50,7 @@ from OpenGL.constants import GLfloat_4
 
 import numpy
 from numpy.linalg import inv
+from numpy.linalg import norm
 
 from interaction import Interaction
 from node import Cube
@@ -156,11 +158,25 @@ class Viewer(object):
         gluPerspective(70, aspect_ratio, 0.1, 1000.0)
         glTranslated(0, 0, -15)
 
+    def get_ray(self, x, y):
+        self.init_view()
+
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+
+        start = numpy.array(gluUnProject(x, y, 0.001))
+        end = numpy.array(gluUnProject(x, y, 0.999))
+
+        direction = end - start
+        direction = direction / norm(direction)
+
+        return start, direction
+
     def pick(self, x, y):
         start, direction = self.get_ray(x, y)
         self.scene.pick(start, direction, self.modelView)
 
-    def place(self, x, y):
+    def place(self, shape, x, y):
         start, direction = self.get_ray(x, y)
         self.scene.place(shape, start, direction, self.inverseModelView)
 

@@ -1,7 +1,10 @@
 import random
 
+from OpenGL.GL import GL_EMISSION
+from OpenGL.GL import GL_FRONT
 from OpenGL.GL import glCallList
 from OpenGL.GL import glColor3f
+from OpenGL.GL import glMaterialfv
 from OpenGL.GL import glMultMatrixf
 from OpenGL.GL import glPopMatrix
 from OpenGL.GL import glPushMatrix
@@ -43,6 +46,28 @@ class Node(object):
 
     def translate(self, x, y, z):
         self.translation_matrix = numpy.dot(self.translation_matrix, translation([x, y, z]))
+
+    def rotate_color(self, forwards):
+        self.color_index += 1 if forwards else -1
+        if self.color_index > color.MAX_COLOR:
+            self.color_index = color.MIN_COLOR
+        if self.color_index < color.MIN_COLOR:
+            self.color_index = color.MAX_COLOR
+
+    def scale(self, up):
+        s = 1.1 if up else 0.9
+        self.scaling_matrix = numpy.dot(self.scaling_matrix, scaling([s, s, s]))
+
+    def pick(self, start, direction, mat):
+        newmat = numpy.dot(numpy.dot(mat, self.translation_matrix), numpy.linalg.inv(self.scaling_matrix))
+        results = self.aabb.ray_hit(start, direction, newmat)
+        return results
+
+    def select(self, select=None):
+        if select is not None:
+            self.selected = select
+        else:
+            self.selected = not self.selected
 
 class Primitive(Node):
     def __init__(self):
