@@ -5,23 +5,23 @@ class Base(object):
         self.cls = cls
         self._fields = fileds
 
-    def read_attr(self, filedname):
-        result = self._read_dict(filedname)
+    def read_attr(self, fieldname):
+        result = self._read_dict(fieldname)
         if result is not MISSING:
             return result
-        result = self.cls._read_from_class(filedname)
+        result = self.cls._read_from_class(fieldname)
         if _is_bindable(result):
             return _make_boundmethod(result, self)
         if result is not MISSING:
             return result
         meth = self.cls._read_from_class('__getattr__')
         if meth is not MISSING:
-            return meth(self, filedname)
-        raise AttributeError(filedname)
+            return meth(self, fieldname)
+        raise AttributeError(fieldname)
 
-    def write_attr(self, filedname, value):
+    def write_attr(self, fieldname, value):
         meth = self.cls._read_from_class('__setattr__')
-        return meth(self, filedname, value)
+        return meth(self, fieldname, value)
 
     def isinstance(self, cls):
         return self.cls.issubclass(cls)
@@ -30,11 +30,11 @@ class Base(object):
         meth = self.read_attr(methname)
         return meth(*args)
 
-    def _read_dict(self, filedname):
-        return self._fields.get(filedname, MISSING)
+    def _read_dict(self, fieldname):
+        return self._fields.get(fieldname, MISSING)
 
-    def _write_dict(self, filedname, value):
-        self._fields[filedname] = value
+    def _write_dict(self, fieldname, value):
+        self._fields[fieldname] = value
 
 def _is_bindable(meth):
     return hasattr(meth, '__get__')
@@ -42,8 +42,8 @@ def _is_bindable(meth):
 def _make_boundmethod(meth, self):
     return meth.__get__(self, None)
 
-def OBJECT__setattr__(self, filedname, value):
-    self._write_dict(filedname, value)
+def OBJECT__setattr__(self, fieldname, value):
+    self._write_dict(fieldname, value)
 
 class Instance(Base):
     def __init__(self, cls):

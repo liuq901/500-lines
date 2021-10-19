@@ -5,11 +5,11 @@ class Base(object):
         self.cls = cls
         self._fields = fileds
 
-    def read_attr(self, filedname):
-        return self._read_dict(filedname)
+    def read_attr(self, fieldname):
+        return self._read_dict(fieldname)
 
-    def write_attr(self, filedname, value):
-        self._write_dict(filedname, value)
+    def write_attr(self, fieldname, value):
+        self._write_dict(fieldname, value)
 
     def isinstance(self, cls):
         return self.cls.issubclass(cls)
@@ -18,11 +18,11 @@ class Base(object):
         meth = self.cls._read_from_class(methname)
         return meth(self, *args)
 
-    def _read_dict(self, filedname):
-        return self._fields.get(filedname, MISSING)
+    def _read_dict(self, fieldname):
+        return self._fields.get(fieldname, MISSING)
 
-    def _write_dict(self, filedname, value):
-        self._fields[filedname] = value
+    def _write_dict(self, fieldname, value):
+        self._fields[fieldname] = value
 
 class Instance(Base):
     def __init__(self, cls):
