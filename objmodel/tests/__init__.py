@@ -1,1 +1,1 @@
-from .test_smalltalk_like import TestSmalltalkLike
+from .test_method_based import TestMethodBased

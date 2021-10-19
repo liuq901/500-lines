@@ -1,11 +1,11 @@
 import unittest
 
-from smalltalk_like import Class
-from smalltalk_like import Instance
-from smalltalk_like import OBJECT
-from smalltalk_like import TYPE
+from method_based import Class
+from method_based import Instance
+from method_based import OBJECT
+from method_based import TYPE
 
-class TestSmalltalkLike(unittest.TestCase):
+class TestMethodBased(unittest.TestCase):
     def test_isinstance(self):
         class A(object):
             pass
