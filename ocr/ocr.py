@@ -1,12 +1,12 @@
 import json
 import math
 import os
+import random
 
 import numpy as np
 
 class OCRNeuralNetwork(object):
     LEARNING_RATE = 0.1
-    WIDTH_IN_PIXELS = 20
     NN_FILE_PATH = 'nn.json'
 
     def __init__(self, num_hidden_nodes, data_matrix, data_labels, training_indices, use_file=True):
@@ -22,6 +22,7 @@ class OCRNeuralNetwork(object):
             self.input_layer_bias = self._rand_initialize_weights(1, num_hidden_nodes)
             self.hidden_layer_bias = self._rand_initialize_weights(1, 10)
 
+            random.shuffle(training_indices)
             self.train([{'y0': self.data_matrix[i], 'label': int(self.data_labels[i])} for i in training_indices])
             self.save()
         else:

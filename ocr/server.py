@@ -7,7 +7,7 @@ from ocr import OCRNeuralNetwork
 
 HOST_NAME = 'localhost'
 PORT_NUMBER = 8000
-HIDDEN_NODE_COUNT = 15
+HIDDEN_NODE_COUNT = 25
 
 data_matrix = np.loadtxt(open('data.csv', 'rb'), delimiter=',')
 data_labels = np.loadtxt(open('dataLabels.csv', 'rb'))
