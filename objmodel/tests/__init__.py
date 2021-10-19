@@ -1,0 +1,1 @@
+from .test_smalltalk_like import TestSmalltalkLike
