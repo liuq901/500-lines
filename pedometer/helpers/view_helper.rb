@@ -4,7 +4,7 @@ module ViewHelper
   DECIMAL_PLACES = 2
 
   def format_distance(distance_cm)
-    distance_cm = distance_cm.round(DECIMAL_PLACES)
+    distance_cm = distance_cm.to_f.round(DECIMAL_PLACES)
     if distance_cm >= DISTANCE[:cm_per_km]
       "#{(distance_cm / DISTANCE[:cm_per_km]).round(DECIMAL_PLACES)} km"
     elsif distance_cm >= DISTANCE[:cm_per_m]
@@ -17,7 +17,7 @@ module ViewHelper
 
   def format_time(time_sec)
     return '' if time_sec.nil?
-    Time.at(time_sec.round).utc.strftime("%-H hr, %-M min. %-S sec")
+    Time.at(time_sec.round).utc.strftime("%-H hr, %-M min, %-S sec")
   end
 
   def limit_1000(series)

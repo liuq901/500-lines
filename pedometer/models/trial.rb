@@ -8,7 +8,7 @@ class Trial
     @steps = Integer(steps.to_s) unless steps.to_s.empty?
 
     raise 'Invalid name' if @name.empty?
-    raise 'Invalid rate' if @rate && (@rate < 0)
+    raise 'Invalid rate' if @rate && (@rate <= 0)
     raise 'Invalid steps' if @steps && (@steps < 0)
   end
 

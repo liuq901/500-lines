@@ -1,1 +1,5 @@
-uploads
+uploads/*
+!uploads/female-168.0-70.0_Walk1Combined-100-300.txt
+!uploads/female-168.0-70.0_Walk1Separated-100-300.txt
+!uploads/female-168.0-70.0_Walk2Combined-100-100.txt
+!uploads/female-168.0-70.0_Walk2Separated-100-100.txt

@@ -2,7 +2,7 @@ require 'fileutils'
 require_relative 'user'
 require_relative 'trial'
 
-include FileUtils::Verbose
+include FileUtils
 
 class Upload
 
@@ -11,7 +11,7 @@ class Upload
   attr_reader :file_path, :user, :trial
 
   def initialize(file_path=nil, user_params=nil, trial_params=nil)
-    Dir.mkdir(UPLOAD_DIRECTORY) unless Dir.exists?(UPLOAD_DIRECTORY)
+    Dir.mkdir(UPLOAD_DIRECTORY) unless Dir.exist?(UPLOAD_DIRECTORY)
     if @file_path = file_path
       file_name = @file_path.split('/').last.split('.txt').first.split('_')
       @user = User.new(*file_name.first.split('-'))
@@ -21,7 +21,7 @@ class Upload
       @trial = Trial.new(*trial_params.values)
       @file_path = Upload.generate_file_path(user, trial)
     else
-      raise 'A file path or user and trial parameter must be provided.'
+      raise 'A file path or user and trial parameters must be provided.'
     end
   end
 
