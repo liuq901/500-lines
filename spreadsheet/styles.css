@@ -1,0 +1,12 @@
+table{border-collapse: collapse;}
+th, td{border: 1px solid #CCC;}
+th{background: #DDD;}
+td.formula{background: #EEF;}
+td div{text-align:rigth; width: 120px; min-height: 1.2em;
+    overflow: hidden; text-overflow: ellipsis;}
+div.text{text-align: left;}
+div.error{text-align: center; color: #800; font-size: 90%; border: solid 1px #800}
+input{position: absolute; border: 0; padding: 0; width: 120px; height: 1.3em;
+    font-size: 100%; color: transparent; background: transparent;}
+input:focus {color: #111; background: #EFE;}
+input:focus + div{white-space: nowrap;}
